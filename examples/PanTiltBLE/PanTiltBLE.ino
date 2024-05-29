@@ -75,10 +75,8 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
           distanceMeter->startMeasurement();
         }
 
-        //updateStatus();
+        updateStatus();
         Serial.printf("> %s\r\n", currentStatus.c_str());
-        notificationCharacteristic->setValue(currentStatus);
-        notificationCharacteristic->notify();
       }
     }
 };
@@ -90,15 +88,10 @@ void setup() {
   pan = new FeedbackServo(servoPanPin, servoPanFeedbackPin, 0, 75, 180, 793, 1895, 3183);
   tilt = new FeedbackServo(servoTiltPin, servoTiltFeedbackPin, 70, 90, 110, 1838, 2106, 2408);
 
-  distanceMeter = new TWS10(Serial1, [](tws10_dist_response_t* resp) {
+  distanceMeter = new TWS10(Serial1, [&](tws10_dist_response_t* resp) {
     Serial.printf("addr(0x%02x),fun(0x%02x),size(%u),dist(%umm),crc(0x%04x)\r\n", resp->address, resp->function, resp->dataSize, resp->distance, resp->crc);
     lastDistance = resp->distance;
     updateStatus();
-    if (deviceConnected) {
-      Serial.printf("> %s\r\n", currentStatus.c_str());
-      notificationCharacteristic->setValue(currentStatus);
-      notificationCharacteristic->notify();
-    }
   });
 
   NimBLEDevice::init("TWS10PanTilt");
@@ -118,7 +111,17 @@ void setup() {
   Serial.println("Waiting for a client connection to notify...");
 }
 
+uint32_t lastUpdateMs = 0;
 void loop() {
+  if(millis()-lastUpdateMs > 5000){
+    if (deviceConnected) {
+      updateStatus();
+      Serial.printf("> %s\r\n", currentStatus.c_str());
+      notificationCharacteristic->setValue(currentStatus);
+      notificationCharacteristic->notify();
+    }
+    lastUpdateMs = millis();
+  }
   if (Serial.available()) {
     String input = Serial.readString();
     int pos = input.indexOf("pan");
